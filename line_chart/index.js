@@ -16,7 +16,8 @@ const utils = {
         return a - b
     },
     deltaP: function(a, b) {
-        return ( a / b ) * 100
+        console.log(`a: ${a}, b: ${b}`)
+        return Math.floor((( a - b ) / a) * 100)
     }
 }
 
@@ -79,27 +80,36 @@ class LineChart {
         // ]
         var coords = [
             [this.w - this.y_unit, this.h], // bottom right
-            [0,this.h], // bottom left
-            
-
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300],
-            // [this.w - this.y_unit, 300], 
-            
+            [0 - this.y_unit,this.h], // bottom left
         ]
-        this.line1 = new Line(this.draw, coords, '#b7df48', this.w, this.h, this.y_unit)
+        this.line1 = new Line(this.draw, coords, '#03d0ff', this.w, this.h, this.y_unit)
+        this.line2 = new Line(this.draw, coords, '#b7df48', this.w, this.h, this.y_unit)
+        
         this.line1.init()
+        this.line2.init()
         // this.line2 = new Line(this.draw, coords, '#03d0ff', this.w,)
         // this.line2.init()
+
+        // init delta chart
+        this.delta_group = this.draw.group().move(this.w - this.y_unit, 300)
+        this.delta_box = this.delta_group.rect(this.y_unit, 50).attr({fill: 'none', stroke: '#fff'})
+        this.delta_value = this.delta_group.text('26%').attr({fill: '#FFF'}).move(this.y_unit / 2, 25)
+
     }
+
+    
     
     nextValue(points){
         // create new line
         this.line1.update(points.line1)
+        this.line2.update(points.line2)
+        
+        this.boxy = points.line1.y
+        this.delta = utils.deltaP(points.line2.y, points.line1.y)
+        this.delta_value.text(`${this.delta}%`)
+        this.delta_value.animate().move(null, (points.line2.y - points.line1.y)/2)
+        this.delta_group.animate().move(null, this.boxy)
+        this.delta_box.animate().size(this.y_unit, points.line2.y - points.line1.y)
         // insert new point to end of line
 
         // recalculate coordinates for each point on the line
@@ -109,6 +119,9 @@ class LineChart {
     }
     
 }
+
+
+
 
 
 class PlotPoint extends LineChart{
@@ -134,7 +147,19 @@ class Line {
         this.br_coords = this.coords.slice(1)
         // this.plot_coords = this.coords.slice(2)
         this.plot_coords = []
-        this.polygon = this.draw.polygon(this.coords).attr({stroke: this.fill, fill: 'none'})
+        this.gradient = this.draw.gradient('linear', stop => {
+            stop.at(0.5,this.fill)
+            stop.at(1,'#000c1f')
+        }).from(0,0).to(0,1)
+        this.polygon = this.draw.polygon(this.coords).attr({stroke: this.fill, fill: this.gradient})
+
+        this.polyline = this.draw.polyline(this.coords).attr({stroke: this.fill, 'stroke-weight': 2, fill: 'none'})
+        this.marker = this.draw.marker(10,10, (add) => {
+            add.circle(10).fill(this.fill)
+        })
+        this.polyline.marker('start', this.marker)
+        this.polyline.marker('mid', this.marker)
+        this.polyline.marker('end', this.marker)
     }
     update() {
         
@@ -161,12 +186,18 @@ class Line {
         // this.x_interval = this.x_interval(this.w, this.n_points + 1)
         // console.log(this.x_interval)
         // this.y_axis = this.findMaxY()
-        if( this.unassigned_points ) {
-            this.plot_coords.push([ this.w, point.y ])
+        // if( this.unassigned_points ) {
+        this.plot_coords.push([ this.w, point.y ])
+        
             
             
-            this.unassigned_points--
-        }   
+            // this.unassigned_points--
+        // } 
+        if( this.plot_coords.length >= 7) {
+            
+            this.plot_coords.shift()
+            console.log(this.plot_coords.length)
+        }
 
 
         this.x_interval = ( this.w - this.unit) / this.plot_coords.length 
@@ -175,7 +206,7 @@ class Line {
             
         }
 
-        function swap(a, b) {
+        function shift(a, b) {
             return [...b, ...a]
         }
 
@@ -205,6 +236,9 @@ class Line {
             ...this.br_coords,
             ...this.plot_coords
         ])
+        this.polyline.animate().plot([
+            ...this.plot_coords
+        ])
         
     }
 }
@@ -218,9 +252,9 @@ function doTest() {
     var min = 0;
     var max = 400;
     var p =  utils.genCoords(
-        { y: utils.randomInt(min, max)},
-        { y: utils.randomInt(min, max)},
+        { y: utils.randomInt(min, 200)},
+        { y: utils.randomInt(200, max)},
         )
-    console.log(Math.floor(Math.random() * (max - min)) + min)
+
     LC.nextValue(p)
 }

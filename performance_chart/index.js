@@ -1,13 +1,15 @@
 // config settings
 // chart dimentions
 const config = {
-    max_x: 6,
-    max_y: 5,
+    max_x: 5,
+    max_y: 4,
     scale: 100,
     padding: 10,
+    min_t: 0.5, // min threashold
+    max_t: 4.0, // max threashold for 
     el: "performance-chart",
     target: {
-      fill: "#002036",
+      fill: "#001f35",
       points: [
         { x: 0, y: 2 },
         { x: 1, y: 2 },
@@ -18,7 +20,7 @@ const config = {
       ]
     },
     actual: {
-      fill: "#002036",
+      fill: "#017699",
       points: [
         { x: 0, y: 1 },
         { x: 1, y: 2 },
@@ -73,7 +75,7 @@ const config = {
     }
     get_y_coord(y) {
       // return plottable coordinate
-      return this.h - (y * this.y_interval);
+      return this.h - ((y-1) * this.y_interval);
     }
     
     normalizePoints(p) {
@@ -105,16 +107,28 @@ const config = {
           ...[this.get_x_coord(np[i].x), this.get_y_coord(np[i].y)]
         );
       }
-      console.log(plot_coords);
       return [0, this.h, ...plot_coords, this.w, this.h];
+    }
+    
+    parsePointsPure(points) {
+      let np = points
+      let plot_coords = [];
+      for (let i = 0; i < np.length; i++) {
+        plot_coords.push(
+          ...[this.get_x_coord(np[i].x), this.get_y_coord(np[i].y)]
+        );
+      }
+      return plot_coords
     }
   
     init() {
-      const { target, actual, scale, padding, el, max_x, max_y } = this.config;
+      const { target, actual, scale, padding, el, max_x, max_y, min_t, max_t } = this.config;
       this.w = scale * max_x;
       this.h = scale * max_y;
       this.draw = SVG(el).size("100%", "100%");
       this.chart_group = this.draw.nested();
+      this.background_group = this.draw.group();
+      this.point_group = this.draw.group()
       this.chart = this.chart_group
         .rect(this.w, this.h)
         .attr({ stroke: "#fff", weight: 2 });
@@ -125,13 +139,28 @@ const config = {
       this.y_interval = this.h / max_y;
       this.unit = this.x_interval;
   
+      
       // draw polygons
       this.polyTarget = this.draw
         .polygon(this.parsePoints(target.points))
-        .attr({ stroke: '#aaa', fill: "none" });
+        .attr({ stroke: '#aaa', fill: target.fill});
+      
+      
+      this.chart_group.add(this.polyTarget)
+      
+      this.polyActualGradient = this.draw.gradient('linear', stop => {
+        stop.at(0, actual.fill)
+        stop.at(1,'#003c57')
+      }).from(0,0).to(0,1)
       this.polyActual = this.draw
         .polygon(this.parsePoints(actual.points))
-        .attr({ stroke: '#fff', fill: "none" });
+        .attr({ stroke: '#fff', fill: this.polyActualGradient });
+      this.chart_group.add(this.polyActual)
+      
+      
+      
+      
+      
       
       // draw points
       // must normalize data before you can plot it
@@ -141,7 +170,7 @@ const config = {
           this.get_y_coord(point.y),
           point.x,
           point.y,
-          this.chart_group
+          this.point_group
         )
       })
       this.pointsArr.forEach( point => {
@@ -152,98 +181,74 @@ const config = {
       for (let x = 0; x < max_x; x++) {
         for (let y = 0; y < max_y; y++) {
           // this.draw.rect(1,10).fill('#fff')
-          let box = this.chart_group
+          let box = this.draw
           .rect(this.x_interval, this.x_interval)
           .attr({ stroke: "#06c", weight: 1, fill: "none" })
           .move(x * this.x_interval, y * this.y_interval);
-          // crosshairs
-          this.chart_group
+  
+          this.background_group.add(box)
+        }
+       }
+      
+      // draw crosshairs
+      for (let x = 0; x < max_x+1; x++) {
+        for (let y = 0; y < max_y+1; y++) {
+          let c1 = this.draw
             .rect(2, 20)
             .attr({ fill: "#fff" })
             .move(x * this.x_interval, y * this.y_interval - 9);
-          this.chart_group
+          let c2 = this.draw
             .rect(20, 2)
             .attr({ fill: "#fff" })
             .move(x * this.x_interval - 9, y * this.y_interval);
-  
-          this.chart_group
-            .rect(2, 20)
-            .attr({ fill: "#fff" })
-            .move(
-            x * this.x_interval + this.x_interval,
-            y * this.y_interval - 9 + this.y_interval
-          );
-          this.chart_group
-            .rect(20, 2)
-            .attr({ fill: "#fff" })
-            .move(
-            x * this.x_interval - 9 + this.x_interval,
-            y * this.y_interval + this.y_interval
-          );
+          this.background_group.add(c1)
+          this.background_group.add(c2)
         }
-       }
+      }
+      this.background_group.move(10,10)
+      this.chart_group.move(10,10)
+      this.point_group.move(10,10)
+      
+      // draw min threshold
+      this.dashed_pattern = this.draw.pattern(10,10, add => {
+        add.rect(6,2).fill('#f06')
+      })
+      this.min_t_line = this.draw
+        .rect(this.w, 10)
+        .move(0,this.get_y_coord(min_t) - this.unit)
+        .attr({fill: this.dashed_pattern})
+      this.chart_group.add(this.min_t_line)
     }
   
     setValues(points) {
       // animate line
       this.polyActual
-        .animate(500)
+        .animate(500, '>')
         .plot(this.parsePoints(points));
       
       // animate points
       points.forEach( (point, index) => {
         this.pointsArr[index]
-          .updatePos(this.get_x_coord(point.x), this.get_y_coord(point.y))
+          .updatePos(
+            this.get_x_coord(point.x), this.get_y_coord(point.y), 
+            point.x, point.y
+        )
+        
       })
     }
   
-    setTargetValues(p1, p2, p3) {
-      this.polyTarget
-        .animate(500)
-        .plot([
-          [0, 500],
-          [200, 500],
-          [this.points[2].x, 500 - p3],
-          [this.points[1].x, 500 - p2],
-          [this.points[0].x, 500 - p1],
-          [0, 500]
-        ]);
-    }
-  
-    animateOut() {
-      this.poly
-        .animate(500)
-        .plot([
-          [0, 500],
-          [200, 500],
-          [this.points[2].x, 500],
-          [this.points[1].x, 500],
-          [this.points[0].x, 500],
-          [0, 500]
-        ]);
-      this.polyTarget
-        .animate(500)
-        .plot([
-          [0, 500],
-          [200, 500],
-          [this.points[2].x, 500],
-          [this.points[1].x, 500],
-          [this.points[0].x, 500],
-          [0, 500]
-        ]);
-    }
   }
   
   class PCPoint {
-    constructor(x, y, ix, iy, chart) {
+    constructor(x, y, ix, iy, chart, min_t, max_t) {
       this.x = x // computed grid coord
       this.y = y
       this.ix = ix // original value
       this.iy = iy
       this.chart = chart
-      this.min_threshold = 0.5;
-      this.max_threshold = 4.0;
-      this.size = 20
+      this.min_threshold = min_t;
+      this.max_threshold = max_t;
+      this.size = 16
       this.adur = 500
       this.offset = this.size/2
     }
@@ -251,16 +256,18 @@ const config = {
       // if above threshold, draw full
       this.point = this.chart
           .circle(this.size)
-          .attr({fill: '#000', stroke: '#fff', 'stroke-width': 5})
+          .attr({fill: '#000', stroke: '#03d0ff', 'stroke-width': 5})
           .move(this.x - this.size/2, this.y - this.size/2)
-      this.updateType(this.threshold())
+      this.updateType(this.threshold(this.iy))
+      this.chart.add(this.point)
       // if below threadhold, draw red
       // if normal, draw outlined
     }
-    threshold() {
-      if ( this.iy >= this.max_threshold ) {
+    threshold(val) {
+      console.log(val)
+      if ( val >= this.max_threshold ) {
         return 'max'
-      } else if ( this.iy <= this.min_threshold ) {
+      } else if ( val - 1 <= this.min_threshold ) {
         return 'min'
       } else {
         return ''
@@ -269,27 +276,26 @@ const config = {
     updateType(type){
       switch( type ) {
         case 'max':
-          this.point.animate(this.adur).attr({fill:'#00f', stroke: '#00f'})
+          return { fill: '#03d0ff', stroke: '#03d0ff' }
           break;
         case 'min':
-          this.point.animate(this.adur).attr({fill:'#f00'})
+          return { fill: '#f00' }
           break;
         default:
-          this.point.animate(this.adur).attr({fill:'#000'})
+          return { fill: '#000' }
       }
     }
-    updatePos(x, y){
-      this.point.animate(this.adur).move(x - this.offset,y - this.offset)
-      this.updateType(this.threshold())
+    updatePos(x, y, ix, iy){
+      this.iy = iy // normalized value
+      this.point
+        .animate(this.adur, '>')
+        .move(x - this.offset,y - this.offset)
+        .attr(this.updateType(this.threshold(iy)))
     }
   }
   
-var PC1;
-  window.addEventListener('load', () => {
-     PC1 = new PerformanceChart(config);
-    PC1.init();
-  })
-
+  var PC1 = new PerformanceChart(config);
+  PC1.init();
   
   
   
@@ -306,32 +312,9 @@ var PC1;
   
     let points = gen.map( (item, index) => {
       let { func, rand, min, max } = item
-      console.log(min)
       return {y: func(rand(min, max)), x: index}
     })
     
-    console.log(points)
+    // console.log(points)
     PC1.setValues(points)
   }
-  
-  //window.PerformanceChart = PerformanceChart;
-  
-  //
-  
-  window.testInit = function() {
-    PerformanceChart.setTargetValues(400, 425, 375);
-    PerformanceChart.setValues(200, 75, 125);
-  };
-  
-  window.testValues = function() {
-    PerformanceChart.setValues(
-      100 + Math.random() * 300,
-      100 + Math.random() * 300,
-      100 + Math.random() * 300
-    );
-  };
-  
-  window.testAnimateOut = function() {
-    PerformanceChart.animateOut();
-  };
-  
