@@ -78,16 +78,17 @@ class LineChart {
         //     0,300
         // ]
         var coords = [
-            [0,this.h], // bottom left
             [this.w - this.y_unit, this.h], // bottom right
+            [0,this.h], // bottom left
+            
 
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300],
-            [this.w - this.y_unit, 300], 
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300],
+            // [this.w - this.y_unit, 300], 
             
         ]
         this.line1 = new Line(this.draw, coords, '#b7df48', this.w, this.h, this.y_unit)
@@ -97,7 +98,6 @@ class LineChart {
     }
     
     nextValue(points){
-        console.log(points)
         // create new line
         this.line1.update(points.line1)
         // insert new point to end of line
@@ -119,12 +119,12 @@ class PlotPoint extends LineChart{
 }
 
 class Line {
-    constructor(draw, coords, fill, w,h, y_unit) {
+    constructor(draw, coords, fill, w,h, unit) {
         this.draw = draw
         this.coords = coords
         this.fill = fill
         this.w = w
-        this.y_unit = y_unit
+        this.unit = unit
         
         this.unassigned_points = 7;
     }
@@ -132,8 +132,9 @@ class Line {
         // draw initial line at 0,0
         this.bl_coords = this.coords.slice(0,1)
         this.br_coords = this.coords.slice(1)
-        this.plot_coords = this.coords.slice(2)
-        this.polygon = this.draw.polygon(this.coords).attr({fill: this.fill})
+        // this.plot_coords = this.coords.slice(2)
+        this.plot_coords = []
+        this.polygon = this.draw.polygon(this.coords).attr({stroke: this.fill, fill: 'none'})
     }
     update() {
         
@@ -160,24 +161,51 @@ class Line {
         // this.x_interval = this.x_interval(this.w, this.n_points + 1)
         // console.log(this.x_interval)
         // this.y_axis = this.findMaxY()
+        if( this.unassigned_points ) {
+            this.plot_coords.push([ this.w, point.y ])
+            
+            
+            this.unassigned_points--
+        }   
 
-        this.new_coords = []
 
-        for ( let i = 0; i < this.plot_coords.length; i++) {
-            if ( i < this.unassigned_points) {
-                this.new_coords.push([this.plot_coords[i][0], point.y])
-            }
+        this.x_interval = ( this.w - this.unit) / this.plot_coords.length 
+        for( let x = 0; x < this.plot_coords.length; x++ ) {
+            this.plot_coords[x][0] = this.x_interval * (x+1)
+            
         }
 
-        console.log(this.new_coords)
+        function swap(a, b) {
+            return [...b, ...a]
+        }
+
+        
+        // for( let i = 1; i < this.plot_coords.length; i++) {
+        //     this.plot_coords[i-1] = this.plot_coords[i]
+        // }
+
+        
+
+        
+
+        // for ( let i = 0; i < this.plot_coords.length; i++) {
+        //     if ( i < this.unassigned_points) {
+        //         this.new_coords.push([this.plot_coords[i][0], point.y])
+        //     }
+        // }
+
+        // 
+       
+
+
+
+        // console.log(this.plot_coords)
         this.polygon.animate().plot([
             ...this.bl_coords,
             ...this.br_coords,
-            ...this.new_coords
+            ...this.plot_coords
         ])
-        if(this.unasigned_points) {
-            this.unassigned_points--
-        }
+        
     }
 }
 
@@ -188,7 +216,7 @@ LC.init()
 
 function doTest() {
     var min = 0;
-    var max = 500;
+    var max = 400;
     var p =  utils.genCoords(
         { y: utils.randomInt(min, max)},
         { y: utils.randomInt(min, max)},
