@@ -1,0 +1,8 @@
+html {
+    background-color: black;
+  }
+  #line-chart {
+    border: 1px solid #333;
+    height: 400px;
+    width: 500px;
+  }
